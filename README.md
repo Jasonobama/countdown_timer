@@ -22,7 +22,7 @@ A lightweight desktop countdown timer built with Python and Tkinter, featuring a
 ## Usage
 
 ```bash
-python countdown_timer.py
+python datatime.py
 ```
 
 ### Controls
@@ -42,3 +42,15 @@ python countdown_timer.py
 2. Choose **Duration** or **Deadline** mode.
 3. Enter the desired hours/minutes/seconds, or a future date and time.
 4. Click `Apply` to start.
+
+## Changelog
+
+### 2025-05-26 — Code Review Fixes
+
+| Category | Change |
+|----------|--------|
+| Import order | Reordered imports alphabetically by module name (PEP 8) |
+| Method length | Extracted `_confirm_settings()` from `open_settings()` to reduce method from 153 to ~60 lines |
+| Date validation | Invalid dates (e.g. Feb 30) now show `YYYY-MM-DD is not a valid date.` instead of a raw Python exception |
+| Redundant calls | Cached `datetime.now()` result to avoid duplicate calls in deadline confirmation |
+| Child window | Settings dialog is now tracked and auto-closed when the main window is destroyed |

@@ -1,7 +1,7 @@
 import calendar
+from datetime import datetime, timedelta
 import math
 import tkinter as tk
-from datetime import datetime, timedelta
 
 
 class Countdown:
@@ -29,6 +29,7 @@ class Countdown:
         self.after_id = None
         self._x = 0
         self._y = 0
+        self._settings_win = None
 
         self.shell = tk.Frame(
             self.root,
@@ -62,7 +63,7 @@ class Countdown:
         self.close_btn = self.make_button(
             self.header,
             'x',
-            self.root.destroy,
+            self._destroy_app,
             width=3,
             bg=self.BG,
             fg=self.MUTED,
@@ -124,7 +125,7 @@ class Countdown:
             widget.bind('<ButtonPress-1>', self.drag_start)
             widget.bind('<B1-Motion>', self.drag_move)
 
-        self.root.bind('<Button-3>', lambda event: self.root.destroy())
+        self.root.bind('<Button-3>', lambda event: self._destroy_app())
         self.root.mainloop()
 
     def make_button(
@@ -267,10 +268,15 @@ class Countdown:
 
     def open_settings(self):
         win = tk.Toplevel(self.root)
+        self._settings_win = win
         win.title('Set Countdown')
         win.resizable(False, False)
         win.attributes('-topmost', True)
         win.configure(bg=self.BG)
+
+        def close():
+            self._settings_win = None
+            win.destroy()
 
         content = tk.Frame(
             win,
@@ -361,44 +367,20 @@ class Countdown:
         button_frame = tk.Frame(content, bg=self.BG)
         button_frame.pack(fill='x', pady=(10, 0))
 
-        def confirm():
-            try:
-                if mode.get() == 'duration':
-                    hours = self.read_int(hour_var, 'Hours', minimum=0)
-                    minutes = self.read_int(min_var, 'Minutes', minimum=0)
-                    seconds = self.read_int(sec_var, 'Seconds', minimum=0)
-                    total = hours * 3600 + minutes * 60 + seconds
-                    if total <= 0:
-                        raise ValueError('Duration must be greater than zero.')
-                    self.stop_and_set(total)
-                else:
-                    year = self.read_int(entries['year'], 'Year', minimum=1)
-                    month = self.read_int(entries['month'], 'Month', 1, 12)
-                    day = self.read_int(entries['day'], 'Day', 1, 31)
-                    hour = self.read_int(entries['hour'], 'Hour', 0, 23)
-                    minute = self.read_int(entries['minute'], 'Minute', 0, 59)
-                    second = self.read_int(entries['second'], 'Second', 0, 59)
-                    target = datetime(year, month, day, hour, minute, second)
-                    total = max(0, math.ceil((target - datetime.now()).total_seconds()))
-                    if total <= 0:
-                        raise ValueError('Deadline must be in the future.')
-                    self.stop_and_set(total, mode='deadline', target=target)
-                win.destroy()
-            except ValueError as error:
-                message.config(text=str(error))
-
         self.make_button(
             button_frame,
             'Cancel',
-            win.destroy,
+            close,
             width=8,
             bg=self.PANEL,
         ).pack(side='right', padx=(6, 0))
 
+        settings_state = (win, message, mode, hour_var, min_var, sec_var, entries)
+
         self.make_button(
             button_frame,
             'Apply',
-            confirm,
+            lambda: self._confirm_settings(settings_state),
             width=8,
             bg=self.ACCENT,
             fg='#052e16',
@@ -419,6 +401,41 @@ class Countdown:
         win.transient(self.root)
         win.grab_set()
         win.focus_force()
+        win.protocol('WM_DELETE_WINDOW', close)
+
+    def _confirm_settings(self, state):
+        win, message, mode, hour_var, min_var, sec_var, entries = state
+        try:
+            if mode.get() == 'duration':
+                hours = self.read_int(hour_var, 'Hours', minimum=0)
+                minutes = self.read_int(min_var, 'Minutes', minimum=0)
+                seconds = self.read_int(sec_var, 'Seconds', minimum=0)
+                total = hours * 3600 + minutes * 60 + seconds
+                if total <= 0:
+                    raise ValueError('Duration must be greater than zero.')
+                self.stop_and_set(total)
+            else:
+                year = self.read_int(entries['year'], 'Year', minimum=1)
+                month = self.read_int(entries['month'], 'Month', 1, 12)
+                day = self.read_int(entries['day'], 'Day', 1, 31)
+                hour = self.read_int(entries['hour'], 'Hour', 0, 23)
+                minute = self.read_int(entries['minute'], 'Minute', 0, 59)
+                second = self.read_int(entries['second'], 'Second', 0, 59)
+                try:
+                    target = datetime(year, month, day, hour, minute, second)
+                except ValueError:
+                    raise ValueError(
+                        f'{year}-{month:02d}-{day:02d} is not a valid date.'
+                    )
+                now = datetime.now()
+                total = max(0, math.ceil((target - now).total_seconds()))
+                if total <= 0:
+                    raise ValueError('Deadline must be in the future.')
+                self.stop_and_set(total, mode='deadline', target=target)
+            self._settings_win = None
+            win.destroy()
+        except ValueError as error:
+            message.config(text=str(error))
 
     def add_field_row(self, parent, fields):
         for column, (label, var, width) in enumerate(fields):
@@ -458,6 +475,11 @@ class Countdown:
             raise ValueError(f'{label} must be at most {maximum}.')
 
         return value
+
+    def _destroy_app(self):
+        if self._settings_win and self._settings_win.winfo_exists():
+            self._settings_win.destroy()
+        self.root.destroy()
 
     def drag_start(self, event):
         self._x = event.x
